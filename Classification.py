@@ -10,9 +10,9 @@ df = pd.read_csv('/home/anastasios/Documents/Python/fruitsText.csv')
 #plt.show()
 
 
-###############
+################
 # Visualisation
-###############
+################
 
 #df.drop('fruit_label', axis=1).plot(kind='box', subplots=True, layout=(2,2), sharex=False, sharey=False, figsize=(9,9),
  #                                       title='Box Plot for each input variable')
