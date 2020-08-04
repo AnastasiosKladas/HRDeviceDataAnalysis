@@ -30,14 +30,17 @@ def bestLambda(df,regressionName,returnError=0):
     return key_list[val_list.index(min(val_list))]
 
 
-def plotSPO2(regressionName,df2predict,graphsFolderPath):
+def plotSPO2(regressionName,df2predict,graphsFolderPath,Initial,AfterPred,Correct):
+    InitialRMSE = "%.4f" % np.sqrt(mean_squared_error(Initial,Correct))
+    PredRMSE = "%.4f" % np.sqrt(mean_squared_error(AfterPred,Correct))
     plt.figure()
     plt.subplot(211)
     plotTitle = str(regressionName)+' Regression SPO2'
     plt.title(plotTitle)
-    plt.plot(df2predict['TotalSec'],df2predict['SPO2_Apel'], label= 'Medical Device')
-    plt.plot(df2predict['TotalSec'],df2predict['spo2_Berry'], label = 'Apel Actual')
-    plt.plot(df2predict['TotalSec'],df2predict['SPO2_pred'], label = 'Apel Predicted')
+    plt.plot(df2predict['TotalSec'],df2predict['spo2_Berry'], label= 'Medical Device')
+    plt.plot(df2predict['TotalSec'],df2predict['SPO2_Apel'], label = 'Apel Actual RMSE: {}'.format(InitialRMSE))
+    plt.plot(df2predict['TotalSec'],df2predict['SPO2_pred'], label = 'Apel Predicted RMSE: {}'.format(PredRMSE))
+    plt.ylim(80,110)
     plt.legend()
     plt.subplot(212)
     plt.plot(df2predict['TotalSec'],df2predict['xPer'],'magenta', label= 'x')
@@ -48,14 +51,16 @@ def plotSPO2(regressionName,df2predict,graphsFolderPath):
     plt.savefig(graphsFolderPath+'/'+plotTitle)
     plt.show()
 
-def plotHR(regressionName,df2predict,graphsFolderPath):
+def plotHR(regressionName,df2predict,graphsFolderPath,Initial,AfterPred,Correct):
+    InitialRMSE = "%.4f" % np.sqrt(mean_squared_error(Initial,Correct))
+    PredRMSE = "%.4f" % np.sqrt(mean_squared_error(AfterPred,Correct))
     plt.figure()
     plt.subplot(211)
     plotTitle = str(regressionName)+' Regression HR'
     plt.title(plotTitle)
     plt.plot(df2predict['TotalSec'],df2predict['pr_Berry'], label= 'Medical Device')
-    plt.plot(df2predict['TotalSec'],df2predict['HR_Apel'], label = 'Apel Actual')
-    plt.plot(df2predict['TotalSec'],df2predict['Pr_pred'], label = 'Apel Predicted')
+    plt.plot(df2predict['TotalSec'],df2predict['HR_Apel'], label = 'Apel Actual RMSE: {}'.format(InitialRMSE))
+    plt.plot(df2predict['TotalSec'],df2predict['Pr_pred'], label = 'Apel Predicted RMSE: {}'.format(PredRMSE))
     plt.legend()
     plt.subplot(212)
     plt.plot(df2predict['TotalSec'],df2predict['xPer'],'magenta', label= 'x')
@@ -65,3 +70,64 @@ def plotHR(regressionName,df2predict,graphsFolderPath):
     plt.legend()
     plt.savefig(graphsFolderPath+'/'+plotTitle)
     plt.show()
+
+
+def filterErrors(testdf,column,showGraphs=False):
+    initialdf = testdf
+    initialdf['PerChange'] = initialdf[column].pct_change()
+    limit = 0.90
+    def deleteRows(df,column,i):
+        index = [i for i in range(len(df.iloc[:,0]))]
+        df['index'] = index
+        #find the columns location
+        columnsList = df.columns.values
+        columnLocation = np.where(columnsList == column)[0][0]
+        #find where the values are returning back to normal
+        back2normalocation = 0
+        dropByTotalSec = []
+        if df.iloc[i, columnLocation] < 0:
+            for k in range(len(df.iloc[i:,columnLocation])):
+                if df.iloc[i+k,columnLocation] > 0.5:
+                    back2normalocation = i + k
+            values2drop = [i for i in range(i,back2normalocation+1)]
+            dropByTotalSec = df[df['index'].isin(values2drop)]['TotalSec'].values.tolist()
+        if df.iloc[i, columnLocation] > 0:
+            for k in range(len(df.iloc[i:,columnLocation])):
+                if df.iloc[i+k,columnLocation] < -0.5:
+                    back2normalocation = i + k
+            values2drop = [i for i in range(i,back2normalocation+1)]
+            dropByTotalSec = df[df['index'].isin(values2drop)]['TotalSec'].values.tolist()
+        return dropByTotalSec
+    testdf['PerChange'] = testdf[column].pct_change()
+    run = True
+    rows2drop = []
+    while run == True:
+
+        run = False
+        for i in range(len(testdf.iloc[:,-1])):
+            if (testdf.iloc[i,-1] < - limit) or (testdf.iloc[i,-1] > limit):
+                rows2drop = deleteRows(testdf,'PerChange',i)
+                print(rows2drop)
+                if len(rows2drop) > 1:
+                    run = True
+                else:
+                    run = False
+                break
+        testdf= testdf[~testdf['TotalSec'].isin(rows2drop)]
+    
+        
+    #testdf[['index','PerChange','TotalSec',column]].to_csv('/home/anastasios/Documents/ElectricalEngeneeringMasterDegree/MedicalProject/misc/WhatIsGoingWrong.csv')
+    #testdf = testdf.drop(columns=['index','PerChange'])
+    testdf = testdf.drop(columns=['PerChange'])
+    if showGraphs == True:
+        plt.figure()
+        plt.subplot(211)
+        plt.plot(initialdf['TotalSec'],initialdf[column], label= 'Before '+str(column))
+        plt.legend()
+        plt.subplot(212)
+        plt.plot(testdf['TotalSec'],testdf[column] ,label = 'After'+str(column))          
+        plt.legend()
+        plt.show()
+        initialdf[[column,'PerChange','TotalSec']].to_csv('/home/anastasios/Documents/ElectricalEngeneeringMasterDegree/MedicalProject/misc/WhatIsGoingWrong.csv',index=None)
+
+    return testdf
